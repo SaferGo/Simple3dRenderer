@@ -1,1 +1,0 @@
-/usr/bin/c++   -Wall   CMakeFiles/Simple3DRenderer.dir/src/Simple-3D-Renderer/main.cpp.o  -o ../bin/Simple3DRenderer  libs/tga/libtga.a 
