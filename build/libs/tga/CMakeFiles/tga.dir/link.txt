@@ -1,0 +1,2 @@
+/usr/bin/ar qc libtga.a  CMakeFiles/tga.dir/src/TGAImage.cpp.o
+/usr/bin/ranlib libtga.a

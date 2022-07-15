@@ -1,0 +1,24 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+../libs/tga/include/tga/TGAImage.h
+cstdint
+-
+fstream
+-
+vector
+-
+
+/home/santiago/code/graphics/Simple-3D-Renderer/libs/tga/src/TGAImage.cpp
+iostream
+-
+cstring
+-
+tga/TGAImage.h
+/home/santiago/code/graphics/Simple-3D-Renderer/libs/tga/src/tga/TGAImage.h
+

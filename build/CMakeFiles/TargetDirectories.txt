@@ -1,0 +1,10 @@
+/home/santiago/code/graphics/Simple-3D-Renderer/build/CMakeFiles/rebuild_cache.dir
+/home/santiago/code/graphics/Simple-3D-Renderer/build/CMakeFiles/edit_cache.dir
+/home/santiago/code/graphics/Simple-3D-Renderer/build/CMakeFiles/Simple3DRenderer.dir
+/home/santiago/code/graphics/Simple-3D-Renderer/build/libs/glm/CMakeFiles/rebuild_cache.dir
+/home/santiago/code/graphics/Simple-3D-Renderer/build/libs/glm/CMakeFiles/edit_cache.dir
+/home/santiago/code/graphics/Simple-3D-Renderer/build/libs/glm/glm/CMakeFiles/rebuild_cache.dir
+/home/santiago/code/graphics/Simple-3D-Renderer/build/libs/glm/glm/CMakeFiles/edit_cache.dir
+/home/santiago/code/graphics/Simple-3D-Renderer/build/libs/tga/CMakeFiles/rebuild_cache.dir
+/home/santiago/code/graphics/Simple-3D-Renderer/build/libs/tga/CMakeFiles/edit_cache.dir
+/home/santiago/code/graphics/Simple-3D-Renderer/build/libs/tga/CMakeFiles/tga.dir
