@@ -21,6 +21,9 @@ add_subdirectory(${GLM_DIR} EXCLUDE_FROM_ALL)
 set(TGA_DIR "${PROJECT_LIBRARIES_DIR}/tga")
 add_subdirectory(${TGA_DIR})
 
+# -ModelReader
+set(OBJ_FILE_READER_DIR "${PROJECT_LIBRARIES_DIR}/ObjFileReader")
+add_subdirectory(${OBJ_FILE_READER_DIR})
 
 # Executable
 add_executable(${PROJECT_NAME} 
@@ -38,4 +41,5 @@ target_include_directories(
 target_link_libraries(${PROJECT_NAME} PUBLIC
    glm
    tga
+   ObjFileReader
 )
