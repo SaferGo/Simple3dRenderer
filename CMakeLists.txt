@@ -21,13 +21,14 @@ add_subdirectory(${GLM_DIR} EXCLUDE_FROM_ALL)
 set(TGA_DIR "${PROJECT_LIBRARIES_DIR}/tga")
 add_subdirectory(${TGA_DIR})
 
-# -ModelReader
-set(OBJ_FILE_READER_DIR "${PROJECT_LIBRARIES_DIR}/ObjFileReader")
-add_subdirectory(${OBJ_FILE_READER_DIR})
+# -TinyObjLoader
+set(TINY_OBJ_LOADER_DIR "${PROJECT_LIBRARIES_DIR}/tinyobjloader")
+add_subdirectory(${TINY_OBJ_LOADER_DIR})
 
 # Executable
 add_executable(${PROJECT_NAME} 
    "${PROJECT_SOURCE_DIR}/Simple-3D-Renderer/main.cpp"
+   "${PROJECT_SOURCE_DIR}/Simple-3D-Renderer/Math/util.cpp"
 )
 
 target_include_directories(
@@ -41,5 +42,5 @@ target_include_directories(
 target_link_libraries(${PROJECT_NAME} PUBLIC
    glm
    tga
-   ObjFileReader
+   tinyobjloader
 )
