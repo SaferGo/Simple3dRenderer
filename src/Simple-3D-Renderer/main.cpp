@@ -276,60 +276,9 @@ int main()
             }
          }
 
-
          index_offset += fv;
-
       }
    }
-
-   ////////////
-
-   //for (int i = 0; i < shapes[0].mesh.num_face_vertices.size(); i++)
-   //{
-   //   std::cout << " ESA " << shapes[0].mesh.num_face_vertices.size() << std::endl;
-   //   glm::fvec3 worldCoords[3];
-   //   glm::ivec3 screenCoords[3];
-   //   glm::ivec3 textureCoords[3];
-
-   //   for (int j = 0; j < 3; j++)
-   //   {
-   //      // access to vertex
-   //      tinyobj::index_t idx = shapes[0].mesh.indices[j];
-   //      worldCoords[j].x = attrib.vertices[3*size_t(idx.vertex_index)];
-   //      worldCoords[j].y = attrib.vertices[3*size_t(idx.vertex_index)+1];
-   //      worldCoords[j].z = attrib.vertices[3*size_t(idx.vertex_index)+2];
-   //      screenCoords[j] = getScreenCoords(worldCoords[j]);
-   //      // Check if `texcoord_index` is zero or positive. negative = no texcoord data
-   //      //std::cout << "TENEMOS: " << worldCoords[j].x << " " << worldCoords[j].y << " " << worldCoords[j].z << std::endl;
-   //      if (idx.texcoord_index >= 0) {
-   //         tinyobj::real_t tx = attrib.texcoords[2*size_t(idx.texcoord_index)+0];
-   //         tinyobj::real_t ty = attrib.texcoords[2*size_t(idx.texcoord_index)+1];
-   //      }
-   //   }
-
-   //   
-   //   if (isInClipSpace(screenCoords))
-   //   {
-   //      float intensity = getLightIntensity(worldCoords, lightDir);
-
-   //      // En este caso justo coincide que lo usamos como face culling
-   //      // porq la camara esta en la cordenada (0,0,0)
-   //      if (intensity >= 0)
-   //      {
-   //         drawTriangle(
-   //               screenCoords,
-   //               image,
-   //               TGAColor(
-   //                  intensity * 255,
-   //                  intensity * 255,
-   //                  intensity * 255,
-   //                  intensity * 255
-   //               ),
-   //               zBuffer
-   //         );
-   //      }
-   //   }
-   //}
 
    //image.flip_vertically();
    image.write_tga_file("../output/output.tga");

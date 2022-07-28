@@ -9,5 +9,5 @@ namespace config
    inline constexpr int HALF_RESOLUTION_WIDTH  = RESOLUTION_WIDTH  / 2;
    inline constexpr int HALF_RESOLUTION_HEIGHT = RESOLUTION_HEIGHT / 2;
    
-   inline const std::string MODEL_TO_READ = "../obj/alien.obj";
+   inline const std::string MODEL_TO_READ = "../obj/head.obj";
 };
