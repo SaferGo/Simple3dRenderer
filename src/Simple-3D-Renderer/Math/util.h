@@ -4,7 +4,9 @@
 
 namespace util
 {
-   void swap(glm::vec2& x, glm::vec2& y);
+   //Implement swap with template
+   void swap(glm::fvec2& a, glm::fvec2& b);
+   void swap(glm::ivec3& a, glm::ivec3& b);
    void orderInAscendingOrdX(glm::vec2 (&v)[3]);
    void orderInAscendingOrdY(glm::vec2 (&v)[3]);
 };

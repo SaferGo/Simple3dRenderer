@@ -1,12 +1,5 @@
 #include <Simple-3D-Renderer/Math/util.h>
 
-void util::swap(glm::vec2& x, glm::vec2& y)
-{
-   glm::vec2 tmp = x;
-   x = y;
-   y = tmp;
-}
-
 void util::orderInAscendingOrdY(glm::vec2 (&v)[3])
 {
    if (v[0].y > v[1].y)
@@ -26,3 +19,18 @@ void util::orderInAscendingOrdX(glm::vec2 (&v)[3])
    if (v[1].x > v[2].x)
       swap(v[1], v[2]);
 }
+
+void util::swap(glm::fvec2& a, glm::fvec2& b)
+{
+   glm::fvec2 tmp = a;
+   a = b;
+   b = tmp;
+}
+
+void util::swap(glm::ivec3& a, glm::ivec3& b)
+{
+   glm::ivec3 tmp = a;
+   a = b;
+   b = tmp;
+}
+
