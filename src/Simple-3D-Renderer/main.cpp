@@ -16,7 +16,8 @@
 
 //Delete
 glm::fvec3 nn;
-glm::fvec3 lightDir = glm::normalize(glm::fvec3(0, 0, -1));
+glm::fvec4 lightDir = glm::normalize(glm::fvec4(0.5, 0.5, 1, 0));
+glm::mat4 sa;
 
 glm::mat4 getModelM()
 {
@@ -113,7 +114,7 @@ void getCamera(
 
 void transformWorldToClipCoords(glm::fvec4& worldCoords)
 {
-   glm::fvec3 eyeP = glm::fvec3(0.5, 0.0, 1.8);
+   glm::fvec3 eyeP = glm::fvec3(-1.0, 0.0, 3.5);
    glm::fvec3 targetP = glm::fvec3(0.0, 0.0, -1.0); 
    // Here if we change upV to -upV, the camera will rotate 180 degrees.
    glm::fvec3 upV = glm::fvec3(0.0, 1.0, 0.0);
@@ -122,16 +123,9 @@ void transformWorldToClipCoords(glm::fvec4& worldCoords)
 
    glm::mat4 M  = getModelM();
    glm::mat4 V  = getViewM(camera, eyeP);
-   // zFar = 255 for debugging purposes
-   glm::mat4 P  = getProjectionM(0.001, 10.0, 1.3);
+   glm::mat4 P  = getProjectionM(0.01, 100.0, 0.78);
 
-   std::cout << "ORIGINAL: " << worldCoords.z << std::endl;
-   glm::vec4 t = M * worldCoords;
-   std::cout << "AFTER M: " << t.z << std::endl;
-   t = V * t;
-   std::cout << "AFTER V: " << t.z << std::endl;
-   t = P * t;
-   std::cout << "AFTER P: " << t.z << std::endl;
+   sa = glm::inverse(V);
 
    worldCoords = P * V * M * worldCoords;
 }
@@ -232,20 +226,19 @@ void getBoundingBoxes(
             std::max(boundingBoxMax.y, v[i].y)
       );
    }
-   // make clamp..
 }
 
-float getDepth(const float (&zValues)[3], const glm::fvec3& bc)
+float getDepth(const glm::fvec3 (&v)[3], const glm::fvec3& bc)
 {
-   return zValues[0] * bc.x + zValues[1] * bc.y + zValues[2] * bc.z;
+   return v[0].z * bc.x + v[1].z * bc.y + v[2].z * bc.z;
 }
 
 glm::fvec3 getCoordsWithPerspectiveDivision(glm::fvec4& v)
 {
    return glm::fvec3(
-         v.x / v.w,
-         v.y / v.w,
-         v.z / v.w
+         v.x / glm::max(0.0001f, v.w),
+         v.y / glm::max(0.0001f, v.w),
+         v.z / glm::max(0.0001f, v.w)
    );
 }
 
@@ -260,45 +253,56 @@ void transformClipToScreenCoords(glm::fvec3& v)
    );
 }
 
+// We will cut everything that is behind the zNear and everything that
+// is in front of zFar.
+bool isInClipSpace(const glm::fvec3& clipCoords)
+{
+   if (std::fabs(clipCoords.x) > 1.0 ||
+       std::fabs(clipCoords.y) > 1.0 ||
+       std::fabs(clipCoords.z) > 1.0)
+      return false;
+   return true;
+}
+
+TGAColor getTexel(
+      const glm::fvec2 (&t)[3],
+      const glm::fvec3& bc,
+      const TGAImage& texture
+) {
+   float u = t[0].x * bc.x + t[1].x * bc.y + t[2].x * bc.z;
+   float v = t[0].y * bc.x + t[1].y * bc.y + t[2].y * bc.z;
+
+   return texture.get(u * texture.width(), v * texture.height());
+}
+
 void drawTriangle(
    glm::fvec4 (&coords)[3],
    glm::fvec2 (&t)[3],
-   float (&li)[3],
+   glm::fvec4 (&n)[3],
    TGAImage& image,
    TGAImage& texture,
    float (&zBuffer)[config::RESOLUTION_WIDTH][config::RESOLUTION_HEIGHT]
 ) {
 
+   // Transformation Pipeline
+   glm::fvec3 v[3];
    for (int i = 0; i < 3; i++)
    {
       transformWorldToClipCoords(coords[i]);
 
-      //if (isInClipSpace(v[i]) == false)
-      //   return;
-   }
-
-   // After performing the perspective division, we won't need the w-value
-   // anymore, so we'll use a 3d vector.
-   glm::fvec3 v[3];
-   for (int i = 0; i < 3; i++)
+      // After performing the perspective division, we won't need the w-value
+      // anymore, so we'll use a 3d vector.
       v[i] = getCoordsWithPerspectiveDivision(coords[i]);
 
-   std::cout << "COORDS PD: " << v[0].x << " " << v[0].y << std::endl;
-   
-   for (int i = 0; i < 3; i++)
-   {
-      transformClipToScreenCoords(v[i]);
-      if (v[i].x > config::RESOLUTION_WIDTH ||
-          v[i].x < 0 ||
-          v[i].y > config::RESOLUTION_HEIGHT ||
-          v[i].y < 0)
+      if (isInClipSpace(v[i]) == false)
          return;
+
+      transformClipToScreenCoords(v[i]);
    }
    
-   //std::cout << "COORDS SC: " << v[0].x << " " << v[0].y << v[0].z << std::endl;
-
-   // Determines if the polygon is back-facing or front-facing
-   // Also if the area == 0 -> the triangle is degenerated
+   // Face-culling
+   // If the face if back-facing we'll discard it.
+   // Also, if the area == 0 -> the triangle is degenerated.
    float area = edgeFunction(v[0], v[1], v[2]);
    if (area >= 0)
       return;
@@ -311,71 +315,59 @@ void drawTriangle(
    {
       for (p.y = glm::floor(boundingBoxMin.y); p.y <= glm::floor(boundingBoxMax.y); p.y++)
       {
-         if (int(p.x) > config::RESOLUTION_WIDTH ||
-             int(p.y) > config::RESOLUTION_HEIGHT||
-             int(p.x) < 0 ||
-             int(p.y) < 0)
-            continue;
          glm::fvec3 bc = getBarycentricCoords(v, area, p);
 
          // It means that the point is outside of the triangle.
          if (bc.x == -1 || bc.y == -1 || bc.z == -1)
             continue;
 
-         //float depth = getDepth(zValues, bc);
+         float depth = getDepth(v, bc);
          
-         //if (depth > zBuffer[p.x][p.y])
-         //{
-         //   zBuffer[p.x][p.y] = depth;
+         // Acordate que cuando hacemos la camera transformation, los objetos
+         // delante nuestros pasan a ser +z(si estan delante de la camara).
+         if (depth < zBuffer[int(p.x)][int(p.y)])
+         {
+            zBuffer[int(p.x)][int(p.y)] = depth;
 
-            //float u = t[0].x * bc.x + t[1].x * bc.y + t[2].x * bc.z;
-            //float v = t[0].y * bc.x + t[1].y * bc.y + t[2].y * bc.z;
+            float lightIntensity = (
+               glm::dot(
+                  glm::transpose(sa) * glm::normalize(n[0]),
+                  lightDir
+               ) * bc.x +
+               glm::dot(
+                  glm::transpose(sa) * glm::normalize(n[1]),
+                  lightDir
+               ) * bc.y +
+               glm::dot(
+                  glm::transpose(sa) * glm::normalize(n[2]),
+                  lightDir
+               ) * bc.z
+            );
 
-         //   //image.set(p.x, p.y, texture.get(tt.x, tt.y));
-         //   //----------------------------------
-         //   float lightIntensity = li[0] * bc.x + li[1] * bc.y + li[2] * bc.z;
+            TGAColor texel = getTexel(t, bc, texture);
+            TGAColor light = TGAColor(
+                  lightIntensity * 250,
+                  lightIntensity * 250,
+                  lightIntensity * 250
+            );
 
-         //   //if (lightIntensity < 0)
-         //   //{
-         //   //   image.set(
-         //   //         p.x,
-         //   //         p.y,
-         //   //         //TGAColor(lightIntensity * 255, lightIntensity * 255, lightIntensity * 255, 255) //texture.get(u * config::RESOLUTION_WIDTH, v * config::RESOLUTION_HEIGHT) //WHITE
-         //   //   );
-         //   //}
-         //   //image.set(p.x, p.y, TGAColor(depth * 255, depth * 255, depth * 255, 255));
-         //   image.set(p.x, p.y, WHITE);
-         //}
-         float lightIntensity = glm::dot(nn,lightDir);
-         image.set(
-               p.x, p.y,
-               TGAColor(
-                  lightIntensity * 255,
-                  lightIntensity * 255,
-                  lightIntensity * 255
-               )
-         );
+            if (lightIntensity < 0)
+               continue;
+
+            texel[0] *= lightIntensity;
+            texel[1] *= lightIntensity;
+            texel[2] *= lightIntensity;
+
+            image.set(
+                  p.x, p.y,
+                  texel
+            );
+         }
       }
    }
 }
 
 
-bool isInClipSpace(const glm::ivec3& clipCoords)
-{
-   //if (std::abs(clipCoords[i].x) >= config::RESOLUTION_WIDTH  ||
-   //    std::abs(clipCoords[i].y) >= config::RESOLUTION_HEIGHT)
-   //   return false;
-   return true;
-}
-
-
-glm::ivec2 getTexelCoords(
-      const float u,
-      const float v,
-      const TGAImage& texture
-) {
-   return glm::ivec2(u * texture.width(), v * texture.height());
-}
 
 int main()
 {
@@ -386,7 +378,9 @@ int main()
    );
 
    TGAImage texture;
-   texture.read_tga_file("../assets/texture/cube.tga");
+   texture.read_tga_file("../assets/texture/head.tga");
+   texture.flip_vertically();
+
    tinyobj::ObjReaderConfig readerConfig;
    readerConfig.mtl_search_path = "./";
    tinyobj::ObjReader reader;
@@ -406,7 +400,7 @@ int main()
    float zBuffer[config::RESOLUTION_WIDTH][config::RESOLUTION_HEIGHT];
    for (int i = 0; i < config::RESOLUTION_WIDTH; i++)
       for (int j = 0; j < config::RESOLUTION_HEIGHT; j++)
-         zBuffer[i][j] = std::numeric_limits<float>::min();
+         zBuffer[i][j] = std::numeric_limits<float>::max();
 
    for (size_t s = 0; s < shapes.size(); s++)
    {
@@ -417,7 +411,7 @@ int main()
       {
          glm::fvec4 worldCoords[3];
          glm::fvec2 textureCoords[3];
-         float lightIntensity[3];
+         glm::fvec4 normals[3];
 
          size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
 
@@ -436,20 +430,18 @@ int main()
 
             if (idx.texcoord_index >= 0)
             {
-               textureCoords[int(v)] = glm::fvec2(
-                     attrib.texcoords[2*size_t(idx.texcoord_index)+0],
-                     attrib.texcoords[2*size_t(idx.texcoord_index)+1]
-               );
+               textureCoords[int(v)].x = 
+                  attrib.texcoords[2*size_t(idx.texcoord_index)+0];
+               textureCoords[int(v)].y =
+                  attrib.texcoords[2*size_t(idx.texcoord_index)+1];
             }
 
             if (idx.normal_index >= 0)
             {
-               glm::fvec3 normal;
-               normal.x = attrib.normals[3*size_t(idx.normal_index)+0];
-               normal.y = attrib.normals[3*size_t(idx.normal_index)+1];
-               normal.z = attrib.normals[3*size_t(idx.normal_index)+2];
-
-               lightIntensity[v] = getLightIntensity(normal, lightDir);
+               normals[v].x = attrib.normals[3*size_t(idx.normal_index)+0];
+               normals[v].y = attrib.normals[3*size_t(idx.normal_index)+1];
+               normals[v].z = attrib.normals[3*size_t(idx.normal_index)+2];
+               normals[v].w = 0;
             }
 
          }
@@ -464,7 +456,7 @@ int main()
          drawTriangle(
                worldCoords,
                textureCoords,
-               lightIntensity,
+               normals,
                image,
                texture,
                zBuffer
