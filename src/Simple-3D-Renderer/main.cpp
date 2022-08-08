@@ -5,6 +5,8 @@
 
 #include <Simple-3D-Renderer/Math/util.h>
 #include <Simple-3D-Renderer/Settings/config.h>
+#include <Simple-3D-Renderer/VertexProcessing/vertexProcessing.h>
+#include <Simple-3D-Renderer/TextureProcessing/textureProcessing.h>
 
 #include <iostream>
 #include <cstring>
@@ -14,121 +16,19 @@
 #define RED TGAColor(255, 0, 0, 255)
 #define GREEN TGAColor(0, 255, 0, 255)
 
+struct TransfMatrices
+{
+   glm::mat4 modelM;
+   glm::mat4 viewM;
+   glm::mat4 projectionM;
+   glm::mat4 viewportM;
+   glm::mat4 sa;
+};
+
 //Delete
 glm::fvec3 nn;
 glm::fvec4 lightDir = glm::normalize(glm::fvec4(0.5, 0.5, 1, 0));
 glm::mat4 sa;
-
-glm::mat4 getModelM()
-{
-   return glm::mat4(1.0);
-}
-
-glm::mat4 getViewM(const glm::fvec3 (&camera)[3], const glm::fvec3 eyeP)
-{
-   glm::mat4 V(1.0);
-   V[0][0] = camera[0].x;
-   V[1][0] = camera[0].y;
-   V[2][0] = camera[0].z;
-
-   V[0][1] = camera[1].x;
-   V[1][1] = camera[1].y;
-   V[2][1] = camera[1].z;
-
-   V[0][2] = camera[2].x;
-   V[1][2] = camera[2].y;
-   V[2][2] = camera[2].z;
-
-   V[3][0] = (
-         -camera[0].x * eyeP.x -
-         camera[0].y * eyeP.y -
-         camera[0].z * eyeP.z
-   );
-   V[3][1] = (
-         -camera[1].x * eyeP.x -
-         camera[1].y * eyeP.y -
-         camera[1].z * eyeP.z
-   );
-   V[3][2] = (
-         -camera[2].x * eyeP.x -
-         camera[2].y * eyeP.y -
-         camera[2].z * eyeP.z
-   );
-
-   return V;
-}
-
-void getFrustum(
-      float& left,
-      float& right,
-      float& bottom,
-      float& top,
-      const float zNear,
-      const float fovY
-) {
-   const float tangent = glm::tan(fovY * 0.5);
-   const float height = zNear * tangent;
-   const float width = height * config::ASPECT;
-
-   left = -width;
-   right = width;
-   bottom = -height;
-   top = height;
-}
-
-glm::mat4 getProjectionM(float zNear, float zFar, float fovY)
-{
-   float left, right, bottom, top;
-   getFrustum(left, right, bottom, top, zNear, fovY);
-   
-   glm::mat4 P(0.0);
-
-   P[0][0] = (2 * zNear) / (right - left);
-   P[1][1] = (2 * zNear) / (top - bottom);
-   P[2][0] = (right + left) / (right - left);
-   P[2][1] = (top + bottom) / (top - bottom);
-   P[2][2] = - (zFar + zNear) / (zFar - zNear);
-   P[2][3] = -1;
-   P[3][2] = -(2 * zFar * zNear) / (zFar - zNear);
-
-   return P;
-}
-
-
-void getCamera(
-      glm::fvec3 (&camera)[3],
-      const glm::fvec3 eyeP,
-      const glm::fvec3 targetP,
-      const glm::fvec3 upV
-) {
-   glm::fvec3 z = glm::normalize(eyeP - targetP);
-   glm::fvec3 x = glm::cross(glm::normalize(upV), z);
-   glm::fvec3 y = glm::cross(z, x);
-
-   camera[0] = x;
-   camera[1] = y;
-   camera[2] = z;
-}
-
-
-
-void transformWorldToClipCoords(glm::fvec4& worldCoords)
-{
-   glm::fvec3 eyeP = glm::fvec3(-1.0, 0.0, 3.5);
-   glm::fvec3 targetP = glm::fvec3(0.0, 0.0, -1.0); 
-   // Here if we change upV to -upV, the camera will rotate 180 degrees.
-   glm::fvec3 upV = glm::fvec3(0.0, 1.0, 0.0);
-   glm::fvec3 camera[3];
-   getCamera(camera, eyeP, targetP, upV);
-
-   glm::mat4 M  = getModelM();
-   glm::mat4 V  = getViewM(camera, eyeP);
-   glm::mat4 P  = getProjectionM(0.01, 100.0, 0.78);
-
-   sa = glm::inverse(V);
-
-   worldCoords = P * V * M * worldCoords;
-}
 
 float getLightIntensity(const glm::fvec3& normal, const glm::fvec3& lightDir)
 {
@@ -148,8 +48,16 @@ float getLightIntensity(const glm::fvec3& normal, const glm::fvec3& lightDir)
 //    B = (v2 - v1)
 //
 float edgeFunction(
-      const glm::vec3& v1,
-      const glm::vec3& v2,
+      const glm::vec4& v1,
+      const glm::vec4& v2,
+      const glm::vec4& v3
+) {
+   return (v3.x - v1.x) * (v2.y - v1.y) - (v3.y - v1.y) * (v2.x - v1.x);
+}
+
+float edgeFunction(
+      const glm::vec4& v1,
+      const glm::vec4& v2,
       const glm::vec2& p
 ) {
    return (p.x - v1.x) * (v2.y - v1.y) - (p.y - v1.y) * (v2.x - v1.x);
@@ -159,7 +67,7 @@ float edgeFunction(
 // gives us the area of the parallelograms(or the area of the triangles
 // multiplied by 2) forms by V1V2P, V1V3P and V2V3P.
 bool isPointInTriangle(
-      const glm::fvec3 (&v)[3],
+      const glm::fvec4 (&v)[3],
       const glm::fvec2& p,
       float (&area)[3]
 ) {
@@ -177,7 +85,7 @@ bool isPointInTriangle(
 }
 
 glm::fvec3 getBarycentricCoords(
-      glm::fvec3 (&v)[3],
+      glm::fvec4 (&v)[3],
       const float area,
       const glm::fvec2& p
 ) {
@@ -196,7 +104,7 @@ glm::fvec3 getBarycentricCoords(
 }
 
 void getBoundingBoxes(
-      const glm::fvec3 (&v)[3],
+      const glm::fvec4 (&v)[3],
       glm::fvec2& boundingBoxMin,
       glm::fvec2& boundingBoxMax
 ) {
@@ -228,34 +136,14 @@ void getBoundingBoxes(
    }
 }
 
-float getDepth(const glm::fvec3 (&v)[3], const glm::fvec3& bc)
+float getDepth(const glm::fvec4 (&v)[3], const glm::fvec3& bc)
 {
    return v[0].z * bc.x + v[1].z * bc.y + v[2].z * bc.z;
 }
 
-glm::fvec3 getCoordsWithPerspectiveDivision(glm::fvec4& v)
-{
-   return glm::fvec3(
-         v.x / glm::max(0.0001f, v.w),
-         v.y / glm::max(0.0001f, v.w),
-         v.z / glm::max(0.0001f, v.w)
-   );
-}
-
-void transformClipToScreenCoords(glm::fvec3& v)
-{
-   // It transforms it to [0,2] and then to
-   // [0, RESOLUTION_WIDTH], [0, RESOLUTION_HEIGHT], [0, 1]
-   v =  glm::fvec3(
-         (v.x + 1.0) * config::HALF_RESOLUTION_WIDTH,
-         (v.y + 1.0) * config::HALF_RESOLUTION_HEIGHT,
-         (v.z + 1.0) * 0.5
-   );
-}
-
 // We will cut everything that is behind the zNear and everything that
 // is in front of zFar.
-bool isInClipSpace(const glm::fvec3& clipCoords)
+bool isInClipSpace(const glm::fvec4& clipCoords)
 {
    if (std::fabs(clipCoords.x) > 1.0 ||
        std::fabs(clipCoords.y) > 1.0 ||
@@ -264,41 +152,14 @@ bool isInClipSpace(const glm::fvec3& clipCoords)
    return true;
 }
 
-TGAColor getTexel(
-      const glm::fvec2 (&t)[3],
-      const glm::fvec3& bc,
-      const TGAImage& texture
-) {
-   float u = t[0].x * bc.x + t[1].x * bc.y + t[2].x * bc.z;
-   float v = t[0].y * bc.x + t[1].y * bc.y + t[2].y * bc.z;
-
-   return texture.get(u * texture.width(), v * texture.height());
-}
-
 void drawTriangle(
-   glm::fvec4 (&coords)[3],
+   glm::fvec4 (&v)[3],
    glm::fvec2 (&t)[3],
    glm::fvec4 (&n)[3],
    TGAImage& image,
    TGAImage& texture,
    float (&zBuffer)[config::RESOLUTION_WIDTH][config::RESOLUTION_HEIGHT]
 ) {
-
-   // Transformation Pipeline
-   glm::fvec3 v[3];
-   for (int i = 0; i < 3; i++)
-   {
-      transformWorldToClipCoords(coords[i]);
-
-      // After performing the perspective division, we won't need the w-value
-      // anymore, so we'll use a 3d vector.
-      v[i] = getCoordsWithPerspectiveDivision(coords[i]);
-
-      if (isInClipSpace(v[i]) == false)
-         return;
-
-      transformClipToScreenCoords(v[i]);
-   }
    
    // Face-culling
    // If the face if back-facing we'll discard it.
@@ -344,7 +205,7 @@ void drawTriangle(
                ) * bc.z
             );
 
-            TGAColor texel = getTexel(t, bc, texture);
+            TGAColor texel = textureProcessing::sampleTexture(t, bc, texture);
             TGAColor light = TGAColor(
                   lightIntensity * 250,
                   lightIntensity * 250,
@@ -396,6 +257,28 @@ int main()
 
    auto& attrib = reader.GetAttrib();
    auto& shapes = reader.GetShapes();
+
+   // ------------------------------------
+   const glm::fvec3 eyeP = glm::fvec3(-1.0, 0.0, 3.5);
+   const glm::fvec3 targetP = glm::fvec3(0.0, 0.0, -1.0); 
+   // Here if we change upV to -upV, the camera will rotate 180 degrees.
+   const glm::fvec3 upV = glm::fvec3(0.0, 1.0, 0.0);
+
+   Camera camera(eyeP, targetP, upV);
+
+   const float zNear = 0.01;
+   const float zFar = 100.0;
+   const float fovY = 0.78;
+
+   camera.createFrustum(zNear, zFar, fovY);
+   // ------------------------------------
+
+   TransfMatrices m;
+   m.modelM      = vertexProcessing::getModelM();
+   m.viewM       = vertexProcessing::getViewM(camera);
+   m.projectionM = vertexProcessing::getProjectionM(camera.frustum);
+   m.viewportM   = vertexProcessing::getViewportM();
+   sa          = glm::inverse(m.viewM);
 
    float zBuffer[config::RESOLUTION_WIDTH][config::RESOLUTION_HEIGHT];
    for (int i = 0; i < config::RESOLUTION_WIDTH; i++)
@@ -453,8 +336,36 @@ int main()
                   glm::vec3(worldCoords[0].x, worldCoords[0].y, worldCoords[0].z)
                )
          );
+         glm::fvec4 v[3];
+         for (int ss = 0; ss < 3; ss++)
+            v[ss] = worldCoords[ss];
+
+         // Transformation Pipeline
+         bool clipSp;
+         for (int i = 0; i < 3; i++)
+         {
+
+            // Transfroms world to clip coordinates.
+            v[i] = m.projectionM * m.viewM * m.modelM * v[i];
+
+            // After performing the perspective division, we won't need the
+            // w-value anymore.
+            vertexProcessing::makePerspectiveDivision(v[i]);
+
+            // improve this
+            clipSp = isInClipSpace(v[i]);
+            if (clipSp == false)
+               break;
+
+            // Transforms clip to screen coordinates.
+            v[i] = m.viewportM * v[i];
+         }
+
+         if (clipSp == false)
+            continue;
+
          drawTriangle(
-               worldCoords,
+               v,
                textureCoords,
                normals,
                image,

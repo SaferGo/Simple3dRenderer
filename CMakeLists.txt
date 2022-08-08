@@ -29,6 +29,10 @@ add_subdirectory(${TINY_OBJ_LOADER_DIR})
 add_executable(${PROJECT_NAME} 
    "${PROJECT_SOURCE_DIR}/Simple-3D-Renderer/main.cpp"
    "${PROJECT_SOURCE_DIR}/Simple-3D-Renderer/Math/util.cpp"
+   "${PROJECT_SOURCE_DIR}/Simple-3D-Renderer/Camera/Camera.cpp"
+   "${PROJECT_SOURCE_DIR}/Simple-3D-Renderer/Camera/Frustum.cpp"
+   "${PROJECT_SOURCE_DIR}/Simple-3D-Renderer/VertexProcessing/vertexProcessing.cpp"
+   "${PROJECT_SOURCE_DIR}/Simple-3D-Renderer/TextureProcessing/textureProcessing.cpp"
 )
 
 target_include_directories(
