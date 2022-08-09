@@ -13,4 +13,5 @@ namespace vertexProcessing
    glm::mat4 getViewportM();
 
    void makePerspectiveDivision(glm::fvec4& v);
+   bool isInClipSpace(const glm::fvec4& clipCoords);
 };

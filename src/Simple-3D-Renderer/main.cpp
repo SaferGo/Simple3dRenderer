@@ -7,33 +7,17 @@
 #include <Simple-3D-Renderer/Settings/config.h>
 #include <Simple-3D-Renderer/VertexProcessing/vertexProcessing.h>
 #include <Simple-3D-Renderer/TextureProcessing/textureProcessing.h>
+#include <Simple-3D-Renderer/MeshLoader.h>
+#include <Simple-3D-Renderer/Shaders/GouradShader.h>
 
 #include <iostream>
 #include <cstring>
 #include <limits>
+#include <memory>
 
 #define WHITE TGAColor(255, 255, 255, 255)
 #define RED TGAColor(255, 0, 0, 255)
 #define GREEN TGAColor(0, 255, 0, 255)
-
-struct TransfMatrices
-{
-   glm::mat4 modelM;
-   glm::mat4 viewM;
-   glm::mat4 projectionM;
-   glm::mat4 viewportM;
-   glm::mat4 sa;
-};
-
-//Delete
-glm::fvec3 nn;
-glm::fvec4 lightDir = glm::normalize(glm::fvec4(0.5, 0.5, 1, 0));
-glm::mat4 sa;
-
-float getLightIntensity(const glm::fvec3& normal, const glm::fvec3& lightDir)
-{
-   return glm::dot(normal, lightDir);
-}
 
 // .It tells us:
 //    1) Which side of the line the point is on(in counter-clockwise form):
@@ -134,6 +118,12 @@ void getBoundingBoxes(
             std::max(boundingBoxMax.y, v[i].y)
       );
    }
+
+   // To use them as boundaries in the for-loop
+   boundingBoxMin.x = glm::floor(boundingBoxMin.x);
+   boundingBoxMin.y = glm::floor(boundingBoxMin.y);
+   boundingBoxMax.x = glm::floor(boundingBoxMax.x);
+   boundingBoxMax.y = glm::floor(boundingBoxMax.y);
 }
 
 float getDepth(const glm::fvec4 (&v)[3], const glm::fvec3& bc)
@@ -141,28 +131,16 @@ float getDepth(const glm::fvec4 (&v)[3], const glm::fvec3& bc)
    return v[0].z * bc.x + v[1].z * bc.y + v[2].z * bc.z;
 }
 
-// We will cut everything that is behind the zNear and everything that
-// is in front of zFar.
-bool isInClipSpace(const glm::fvec4& clipCoords)
-{
-   if (std::fabs(clipCoords.x) > 1.0 ||
-       std::fabs(clipCoords.y) > 1.0 ||
-       std::fabs(clipCoords.z) > 1.0)
-      return false;
-   return true;
-}
-
 void drawTriangle(
    glm::fvec4 (&v)[3],
-   glm::fvec2 (&t)[3],
-   glm::fvec4 (&n)[3],
+   std::unique_ptr<IShader> shader,
    TGAImage& image,
-   TGAImage& texture,
+   const TGAImage& texture,
    float (&zBuffer)[config::RESOLUTION_WIDTH][config::RESOLUTION_HEIGHT]
 ) {
    
    // Face-culling
-   // If the face if back-facing we'll discard it.
+   // If the face is back-facing we'll discard it.
    // Also, if the area == 0 -> the triangle is degenerated.
    float area = edgeFunction(v[0], v[1], v[2]);
    if (area >= 0)
@@ -171,10 +149,10 @@ void drawTriangle(
    glm::fvec2 boundingBoxMin, boundingBoxMax;
    getBoundingBoxes(v, boundingBoxMin, boundingBoxMax);
 
-   glm::fvec2 p;
-   for (p.x = glm::floor(boundingBoxMin.x); p.x <= glm::floor(boundingBoxMax.x); p.x++)
+   glm::ivec2 p;
+   for (p.x = boundingBoxMin.x; p.x <= boundingBoxMax.x; p.x++)
    {
-      for (p.y = glm::floor(boundingBoxMin.y); p.y <= glm::floor(boundingBoxMax.y); p.y++)
+      for (p.y = boundingBoxMin.y; p.y <= boundingBoxMax.y; p.y++)
       {
          glm::fvec3 bc = getBarycentricCoords(v, area, p);
 
@@ -182,47 +160,18 @@ void drawTriangle(
          if (bc.x == -1 || bc.y == -1 || bc.z == -1)
             continue;
 
+         TGAColor color;
+         shader->fragment(bc, texture, color);
+
          float depth = getDepth(v, bc);
          
-         // Acordate que cuando hacemos la camera transformation, los objetos
-         // delante nuestros pasan a ser +z(si estan delante de la camara).
-         if (depth < zBuffer[int(p.x)][int(p.y)])
+         // Remember that after we made the view transformations the objects
+         // in front of us are +z.
+         if (depth < zBuffer[p.x][p.y])
          {
-            zBuffer[int(p.x)][int(p.y)] = depth;
+            zBuffer[p.x][p.y] = depth;
 
-            float lightIntensity = (
-               glm::dot(
-                  glm::transpose(sa) * glm::normalize(n[0]),
-                  lightDir
-               ) * bc.x +
-               glm::dot(
-                  glm::transpose(sa) * glm::normalize(n[1]),
-                  lightDir
-               ) * bc.y +
-               glm::dot(
-                  glm::transpose(sa) * glm::normalize(n[2]),
-                  lightDir
-               ) * bc.z
-            );
-
-            TGAColor texel = textureProcessing::sampleTexture(t, bc, texture);
-            TGAColor light = TGAColor(
-                  lightIntensity * 250,
-                  lightIntensity * 250,
-                  lightIntensity * 250
-            );
-
-            if (lightIntensity < 0)
-               continue;
-
-            texel[0] *= lightIntensity;
-            texel[1] *= lightIntensity;
-            texel[2] *= lightIntensity;
-
-            image.set(
-                  p.x, p.y,
-                  texel
-            );
+            image.set(p.x, p.y, color);
          }
       }
    }
@@ -232,144 +181,61 @@ void drawTriangle(
 
 int main()
 {
+   MeshLoader mesh(config::MODEL_TO_READ);
+   mesh.loadTexture(config::TEXTURE_TO_READ);
    TGAImage image(
          config::RESOLUTION_WIDTH,
          config::RESOLUTION_HEIGHT,
          TGAImage::RGB
    );
 
-   TGAImage texture;
-   texture.read_tga_file("../assets/texture/head.tga");
-   texture.flip_vertically();
+   Camera camera(config::eyeP, config::targetP, config::upV);
+   camera.createFrustum(config::zNear, config::zFar, config::fovY);
 
-   tinyobj::ObjReaderConfig readerConfig;
-   readerConfig.mtl_search_path = "./";
-   tinyobj::ObjReader reader;
-
-   if (!reader.ParseFromFile(config::MODEL_TO_READ, readerConfig))
-   {
-      if (!reader.Error().empty())
-         std::cerr << "TinyObjReader: " << reader.Error();
-   }
-   if (!reader.Warning().empty()) {
-      std::cout << "TinyObjReader: " << reader.Warning();
-   }
-
-   auto& attrib = reader.GetAttrib();
-   auto& shapes = reader.GetShapes();
-
-   // ------------------------------------
-   const glm::fvec3 eyeP = glm::fvec3(-1.0, 0.0, 3.5);
-   const glm::fvec3 targetP = glm::fvec3(0.0, 0.0, -1.0); 
-   // Here if we change upV to -upV, the camera will rotate 180 degrees.
-   const glm::fvec3 upV = glm::fvec3(0.0, 1.0, 0.0);
-
-   Camera camera(eyeP, targetP, upV);
-
-   const float zNear = 0.01;
-   const float zFar = 100.0;
-   const float fovY = 0.78;
-
-   camera.createFrustum(zNear, zFar, fovY);
-   // ------------------------------------
-
-   TransfMatrices m;
-   m.modelM      = vertexProcessing::getModelM();
-   m.viewM       = vertexProcessing::getViewM(camera);
-   m.projectionM = vertexProcessing::getProjectionM(camera.frustum);
-   m.viewportM   = vertexProcessing::getViewportM();
-   sa          = glm::inverse(m.viewM);
+   GouradShader shader;
+   shader.uniformModelM      = vertexProcessing::getModelM();
+   shader.uniformViewM       = vertexProcessing::getViewM(camera);
+   shader.uniformProjectionM = vertexProcessing::getProjectionM(camera.frustum);
+   shader.uniformViewportM   = vertexProcessing::getViewportM();
+   shader.uniformSa          = glm::transpose(
+         glm::inverse(shader.uniformViewM)
+   );
 
    float zBuffer[config::RESOLUTION_WIDTH][config::RESOLUTION_HEIGHT];
    for (int i = 0; i < config::RESOLUTION_WIDTH; i++)
       for (int j = 0; j < config::RESOLUTION_HEIGHT; j++)
          zBuffer[i][j] = std::numeric_limits<float>::max();
 
-   for (size_t s = 0; s < shapes.size(); s++)
+   for (size_t s = 0; s < mesh.getNobjects(); s++)
    {
       // Loop over faces(polygon)
       size_t index_offset = 0;
 
-      for (size_t f = 0; f < shapes[s].mesh.num_face_vertices.size(); f++)
+      for (size_t f = 0; f < mesh.getNfaces(s); f++)
       {
-         glm::fvec4 worldCoords[3];
-         glm::fvec2 textureCoords[3];
-         glm::fvec4 normals[3];
+         size_t fv = mesh.getNverticesInFace(s, f);
 
-         size_t fv = size_t(shapes[s].mesh.num_face_vertices[f]);
-
+         bool isInClipSpace = true;
+         glm::fvec4 screenCoords[3];
          // Loop over vertices in the face.
          for (size_t v = 0; v < fv; v++)
          {
-            // access to vertex
-            tinyobj::index_t idx = shapes[s].mesh.indices[index_offset + v];
-
-            worldCoords[v].x = attrib.vertices[3 * size_t(idx.vertex_index) + 0];
-            worldCoords[v].y = attrib.vertices[3 * size_t(idx.vertex_index) + 1];
-            worldCoords[v].z = attrib.vertices[3 * size_t(idx.vertex_index) + 2];
-            // w = 0.0 -> for directions.
-            // w = 1.0 -> for points/vertices.
-            worldCoords[v].w = 1.0;
-
-            if (idx.texcoord_index >= 0)
+            screenCoords[v] = shader.vertex(s, index_offset, v, mesh);
+            if (screenCoords[v] == glm::fvec4(-1))
             {
-               textureCoords[int(v)].x = 
-                  attrib.texcoords[2*size_t(idx.texcoord_index)+0];
-               textureCoords[int(v)].y =
-                  attrib.texcoords[2*size_t(idx.texcoord_index)+1];
-            }
-
-            if (idx.normal_index >= 0)
-            {
-               normals[v].x = attrib.normals[3*size_t(idx.normal_index)+0];
-               normals[v].y = attrib.normals[3*size_t(idx.normal_index)+1];
-               normals[v].z = attrib.normals[3*size_t(idx.normal_index)+2];
-               normals[v].w = 0;
-            }
-
-         }
-         nn = glm::normalize(
-               glm::cross(
-                  glm::vec3(worldCoords[2].x, worldCoords[2].y, worldCoords[2].z) -
-                  glm::vec3(worldCoords[0].x, worldCoords[0].y, worldCoords[0].z),
-                  glm::vec3(worldCoords[1].x, worldCoords[1].y, worldCoords[1].z) -
-                  glm::vec3(worldCoords[0].x, worldCoords[0].y, worldCoords[0].z)
-               )
-         );
-         glm::fvec4 v[3];
-         for (int ss = 0; ss < 3; ss++)
-            v[ss] = worldCoords[ss];
-
-         // Transformation Pipeline
-         bool clipSp;
-         for (int i = 0; i < 3; i++)
-         {
-
-            // Transfroms world to clip coordinates.
-            v[i] = m.projectionM * m.viewM * m.modelM * v[i];
-
-            // After performing the perspective division, we won't need the
-            // w-value anymore.
-            vertexProcessing::makePerspectiveDivision(v[i]);
-
-            // improve this
-            clipSp = isInClipSpace(v[i]);
-            if (clipSp == false)
+               isInClipSpace = false;
                break;
-
-            // Transforms clip to screen coordinates.
-            v[i] = m.viewportM * v[i];
+            }
          }
 
-         if (clipSp == false)
+         if (isInClipSpace == false)
             continue;
 
          drawTriangle(
-               v,
-               textureCoords,
-               normals,
+               screenCoords,
+               std::make_unique<GouradShader>(shader),
                image,
-               texture,
+               mesh.getTexture(),
                zBuffer
          );
 

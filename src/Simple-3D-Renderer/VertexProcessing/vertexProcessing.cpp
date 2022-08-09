@@ -92,3 +92,15 @@ void vertexProcessing::makePerspectiveDivision(glm::fvec4& v)
          1.0
    );
 }
+
+
+// We will cut everything that is behind the zNear and everything that
+// is in front of zFar.
+bool vertexProcessing::isInClipSpace(const glm::fvec4& clipCoords)
+{
+   if (std::fabs(clipCoords.x) > 1.0 ||
+       std::fabs(clipCoords.y) > 1.0 ||
+       std::fabs(clipCoords.z) > 1.0)
+      return false;
+   return true;
+}
