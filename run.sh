@@ -1,7 +1,10 @@
 #!/bin/bash
 
-mkdir build
+if [ !-d "build" ]; then
+   mkdir build
+fi
+
 cd build
 cmake ..
-make
+make -j4
 ./../bin/Simple3DRenderer

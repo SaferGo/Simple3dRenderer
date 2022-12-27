@@ -11,7 +11,7 @@ set(PROJECT_SOURCE_DIR "${CMAKE_SOURCE_DIR}/src")
 set(PROJECT_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/include")
 set(PROJECT_LIBRARIES_DIR "${CMAKE_SOURCE_DIR}/libs")
 
-# LIBS
+#################################### LIBS #####################################
 
 # -GLM
 set(GLM_DIR "${PROJECT_LIBRARIES_DIR}/glm")
@@ -25,16 +25,19 @@ add_subdirectory(${TGA_DIR})
 set(TINY_OBJ_LOADER_DIR "${PROJECT_LIBRARIES_DIR}/tinyobjloader")
 add_subdirectory(${TINY_OBJ_LOADER_DIR})
 
-# Executable
+############################### Executable ####################################
+
 add_executable(${PROJECT_NAME} 
-   "${PROJECT_SOURCE_DIR}/Simple-3D-Renderer/main.cpp"
-   "${PROJECT_SOURCE_DIR}/Simple-3D-Renderer/Math/util.cpp"
-   "${PROJECT_SOURCE_DIR}/Simple-3D-Renderer/Camera/Camera.cpp"
-   "${PROJECT_SOURCE_DIR}/Simple-3D-Renderer/Camera/Frustum.cpp"
-   "${PROJECT_SOURCE_DIR}/Simple-3D-Renderer/VertexProcessing/vertexProcessing.cpp"
-   "${PROJECT_SOURCE_DIR}/Simple-3D-Renderer/TextureProcessing/textureProcessing.cpp"
-   "${PROJECT_SOURCE_DIR}/Simple-3D-Renderer/Shaders/GouradShader.cpp"
-   "${PROJECT_SOURCE_DIR}/Simple-3D-Renderer/MeshLoader.cpp"
+   "${PROJECT_SOURCE_DIR}/Simple3dRenderer/main.cpp"
+   "${PROJECT_SOURCE_DIR}/Simple3dRenderer/Math/mathUtils.cpp"
+   "${PROJECT_SOURCE_DIR}/Simple3dRenderer/Camera/Camera.cpp"
+   "${PROJECT_SOURCE_DIR}/Simple3dRenderer/Camera/Frustum.cpp"
+   "${PROJECT_SOURCE_DIR}/Simple3dRenderer/Vertex/vertexProcessing.cpp"
+   "${PROJECT_SOURCE_DIR}/Simple3dRenderer/Texture/textureProcessing.cpp"
+   "${PROJECT_SOURCE_DIR}/Simple3dRenderer/Shaders/GouradShader.cpp"
+   "${PROJECT_SOURCE_DIR}/Simple3dRenderer/Shaders/NormalMapping.cpp"
+   "${PROJECT_SOURCE_DIR}/Simple3dRenderer/Renderer/Renderer.cpp"
+   "${PROJECT_SOURCE_DIR}/Simple3dRenderer/Model/Model.cpp"
 )
 
 target_include_directories(
